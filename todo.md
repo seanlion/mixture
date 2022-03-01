@@ -21,6 +21,13 @@ instruction :
   2.mintNFT(children의 addresses, candyMachine에 보낼 accounts)
   
 ### 해야할 것
-프론트에서 어떻게 remaining accounts를 넘길거냐 // https://solanacookbook.com/guides/serialization.html#serializing-instruction-data
-받은 accounts를 캔디머신 코드에서 어떻게 분기처리할거냐?
+1.프론트에서 어떻게 remaining accounts를 넘길거냐 // https://solanacookbook.com/guides/serialization.html#serializing-instruction-data
+- const NFT토큰 정의;
+- remainingAccounts.push(AccountInfo); // AccountInfo의 pubkey: NFT토큰 정의. 근데 이게 한 AccountInfo 받아야하는거같은데.. 여러개 받으려면 어떻게할까
+- remainingAccounts가 아니라 children struct를 받는게 나을 것 같다.
 
+2.받은 accounts를 캔디머신 코드에서 어떻게 분기처리할거냐?
+- mintNft에 children 구조체 추가하기
+- mintNFT에서 children 읽어오기
+- children nft들 authority transfer 시키기
+- children address들을 우리 프로그램 account에 저장하기(metadata에 추가한다?)

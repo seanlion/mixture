@@ -49,7 +49,7 @@ pub mod nft_breeding_machine_v2 {
         let recent_blockhashes = &ctx.accounts.recent_blockhashes;
         let instruction_sysvar_account = &ctx.accounts.instruction_sysvar_account;
         let mut price = breeding_machine.data.price;
-        
+        let children = &mut ctx.accounts.children;// 이 children 계정 주소는 만들어서 넣어야 할듯.
         if let Some(es) = &breeding_machine.data.end_settings {
             match es.end_setting_type {
                 EndSettingType::Date => {
@@ -222,12 +222,11 @@ pub mod nft_breeding_machine_v2 {
         if breeding_machine.items_redeemed >= breeding_machine.data.items_available {
             return Err(ErrorCode::BreedingMachineEmpty.into());
         }
-
         if let Some(mint) = breeding_machine.token_mint {
             let token_account_info = &ctx.remaining_accounts[remaining_accounts_counter];
             remaining_accounts_counter += 1;
             let transfer_authority_info = &ctx.remaining_accounts[remaining_accounts_counter];
-            remaining_accounts_counter += 1;
+            //remaining_accounts_counter += 1;
             let token_account = assert_is_ata(token_account_info, &payer.key(), &mint)?;
 
             if token_account.amount < price {
@@ -235,9 +234,9 @@ pub mod nft_breeding_machine_v2 {
             }
 
             spl_token_transfer(TokenTransferParams {
-                source: token_account_info.clone(), // 유저(payer)
+                source: token_account_info.clone(), // 유저(payer) 정보를 들고 있는 토큰 프로그램
                 destination: wallet.to_account_info(), // 캔디머신 지갑 주소
-                authority: transfer_authority_info.clone(),
+                authority: transfer_authority_info.clone(), // sign하기 위해 만든 주소
                 authority_signer_seeds: &[],
                 token_program: token_program.to_account_info(),
                 amount: price,
@@ -246,7 +245,8 @@ pub mod nft_breeding_machine_v2 {
             if ctx.accounts.payer.lamports() < price {
                 return Err(ErrorCode::NotEnoughSOL.into());
             }
-
+            // https://solscan.io/tx/4jkXt8XEAnXBesrfyVDaU1QQ9uBzLTncuMMCeYD7xKUSzGrWzapAqzPq2Pnm9H2HjbUADpL4jVeceXBv6kAPKKe9?cluster=devnet
+            // #5.3 SOL Transfer에 해당?
             invoke(
                 &system_instruction::transfer(&ctx.accounts.payer.key, wallet.key, price),
                 &[
@@ -257,10 +257,20 @@ pub mod nft_breeding_machine_v2 {
             )?;
         }
         // 자식 정의
-        let children_address =  &ctx.remaining_accounts[remaining_accounts_counter];
+        //안 씀 : let children_address =  &ctx.remaining_accounts[remaining_accounts_counter];
         // children들이 NFT가 맞는지, 이 children들의 소유자가 넘긴건지 체크.
-        // children의 소유권 이전(spl_token_transfer을 사용해야 함.)
+        // for문 돌릴 때 children의 nft 배열을 원소로 transfer 시켜야 함.
+        if let Some(child_config) = &children.data {
+            if child_config.is_parent {
+                // 반복하면서 N개의 children의 소유권 이전(spl_token_transfer을 사용해야 함.)
+                for child in &child_config.nfts {
+                    // transfer and update authority
+                    // child nft에 대한 associate token account(mixture가 owner)를 만들어서, token을 보내고 원래 주인의 ata는 닫기
+                };
+            }
+        }
         
+        // 메타데이터에 children nft address 넣기
         let data = recent_blockhashes.data.borrow();
         let most_recent = array_ref![data, 8, 8];
 
@@ -696,14 +706,16 @@ pub struct WithdrawFunds<'info> {
 
 /// Mint a new NFT pseudo-randomly from the config array.
 #[derive(Accounts)]
-#[instruction(creator_bump: u8)]
+#[instruction(creator_bump: u8, children_nfts:ChildrenNFTs)]
 pub struct MintNFT<'info> {
     #[account(
         mut,
         has_one = wallet
     )]
     breeding_machine: Account<'info, BreedingMachine>,
-    #[account(seeds=[PREFIX.as_bytes(), breeding_machine.key().as_ref()], bump=creator_bump)]
+    #[account(
+        seeds=[PREFIX.as_bytes(), breeding_machine.key().as_ref()], bump=creator_bump
+    )]
     breeding_machine_creator: UncheckedAccount<'info>,
     payer: Signer<'info>,
     #[account(mut)]
@@ -724,13 +736,25 @@ pub struct MintNFT<'info> {
     system_program: Program<'info, System>,
     rent: Sysvar<'info, Rent>,
     clock: Sysvar<'info, Clock>,
-    #[account(address = sysvar::recent_blockhashes::id())]
+    #[account(address = sysvar::recent_blockhashes::ID)]
     recent_blockhashes: UncheckedAccount<'info>,
     #[account(address = sysvar::instructions::id())]
     instruction_sysvar_account: UncheckedAccount<'info>,
+    children: Account<'info, ChildrenNFTs>,
 }
 
+#[account]
+#[derive(Default)]
+pub struct ChildrenNFTs {
+    pub authority: Pubkey, // 이 계정의 권한(mixtureProgram이어야 함.)
+    pub data: Option<ChildrenConfig>,
+}
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+pub struct ChildrenConfig {
+    pub is_parent: bool,
+    pub nfts: Vec<Pubkey>,
+}
 
 /// Update the breeding machine state.
 #[derive(Accounts)]
@@ -797,6 +821,7 @@ pub struct BreedingMachineData {
     /// If [`Some`] requires gateway tokens on mint
     pub gatekeeper: Option<GatekeeperConfig>,
 }
+
 
 /// Configurations options for the gatekeeper.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

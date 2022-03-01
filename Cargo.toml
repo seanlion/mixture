@@ -1,22 +1,29 @@
 [package]
-name = "bpf-program-template"
+name = "mixture"
 version = "0.1.0"
-edition = "2021"
-license = "WTFPL"
+edition = "2018"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
-solana-program = "=1.9.4"
+solana-program = "~1.9.6"
+anchor-lang = "~0.21.0"
+spl-token = { version="~3.2.0", features = [ "no-entrypoint" ] }
+spl-associated-token-account = {version = "~1.0.3", features = ["no-entrypoint"]}
+anchor-spl = "~0.21.0"
+mpl-token-metadata = { version = "~1.1.0", features = [ "no-entrypoint" ] }
+arrayref = "~0.3.6"
+solana-gateway = "~0.1.1"
 
 [features]
 test-bpf = []
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-solana-program-test = "=1.9.4"
-solana-sdk = "=1.9.4"
-solana-validator = "=1.9.4"
-solana-logger = "=1.9.4"
+solana-program-test = "=1.9.6"
+solana-sdk = "=1.9.6"
+solana-validator = "=1.9.6"
+solana-logger = "=1.9.6"
 
 [lib]
 crate-type = ["cdylib", "lib"]
