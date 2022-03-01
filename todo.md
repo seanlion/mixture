@@ -31,3 +31,14 @@ instruction :
 - mintNFT에서 children 읽어오기
 - children nft들 authority transfer 시키기
 - children address들을 우리 프로그램 account에 저장하기(metadata에 추가한다?)
+
+자식 NFT를 우리 소유권으로 만든다.
+  - 자식의 NFT "ATA"의 owner를 "mixture PDA"로 update한다.
+  - 자식 NFT "Mint Account" Pubkey를 부모 NFT metadata pda에 저장한다. 혹은 부모 NFT의 mint account에 저장한다.
+  - 외부에서 부모 NFT를 불러왔을 때, 부모 NFT 밑에 있는 "자식 NFT"의 정보를 불러올 수 있도록 코드짠다.
+부모 NFT의 메타데이터를 만든다.
+  - create metadata account를 하면 된다.
+
+NFT 메타데이터 만들 때 합성물/재료 NFT 여부를 같이 넣어야 한다.(프론트에서 써야함.)
+mixture의 pda를 만들어야 한다.(create_program_address)
+lib.rs 365라인부터 작업 필요 // 부모 NFT의 메타데이터 만드는 구조

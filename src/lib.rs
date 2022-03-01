@@ -1,4 +1,5 @@
 pub mod utils;
+pub mod 
 use {
     crate::utils::{
         assert_initialized, assert_is_ata, assert_keys_equal, assert_owned_by,
@@ -25,6 +26,7 @@ use {
     },
     spl_token::state::Mint,
     std::{cell::RefMut, ops::Deref, str::FromStr},
+    token_metadata::processor,
 };
 anchor_lang::declare_id!("cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ");
 
@@ -38,6 +40,7 @@ pub mod nft_breeding_machine_v2 {
     pub fn mint_nft<'info>(
         ctx: Context<'_, '_, '_, 'info, MintNFT<'info>>,
         creator_bump: u8,
+        //composable_config: Option<ComposableNFTConfig>
     ) -> ProgramResult {
         let breeding_machine = &mut ctx.accounts.breeding_machine;
         let breeding_machine_creator = &ctx.accounts.breeding_machine_creator;
@@ -49,7 +52,7 @@ pub mod nft_breeding_machine_v2 {
         let recent_blockhashes = &ctx.accounts.recent_blockhashes;
         let instruction_sysvar_account = &ctx.accounts.instruction_sysvar_account;
         let mut price = breeding_machine.data.price;
-        let children = &mut ctx.accounts.children;// 이 children 계정 주소는 만들어서 넣어야 할듯.
+        //let children = &mut ctx.accounts.children;// 이 children 계정 주소는 만들어서 넣어야 할듯.
         if let Some(es) = &breeding_machine.data.end_settings {
             match es.end_setting_type {
                 EndSettingType::Date => {
@@ -256,21 +259,7 @@ pub mod nft_breeding_machine_v2 {
                 ],
             )?;
         }
-        // 자식 정의
-        //안 씀 : let children_address =  &ctx.remaining_accounts[remaining_accounts_counter];
-        // children들이 NFT가 맞는지, 이 children들의 소유자가 넘긴건지 체크.
-        // for문 돌릴 때 children의 nft 배열을 원소로 transfer 시켜야 함.
-        if let Some(child_config) = &children.data {
-            if child_config.is_parent {
-                // 반복하면서 N개의 children의 소유권 이전(spl_token_transfer을 사용해야 함.)
-                for child in &child_config.nfts {
-                    // transfer and update authority
-                    // child nft에 대한 associate token account(mixture가 owner)를 만들어서, token을 보내고 원래 주인의 ata는 닫기
-                };
-            }
-        }
-        
-        // 메타데이터에 children nft address 넣기
+            
         let data = recent_blockhashes.data.borrow();
         let most_recent = array_ref![data, 8, 8];
 
@@ -302,6 +291,23 @@ pub mod nft_breeding_machine_v2 {
                 verified: false,
                 share: c.share,
             });
+        }
+        // 자식 정의
+        //안 씀 : let children_address =  &ctx.remaining_accounts[remaining_accounts_counter];
+        // children들이 NFT가 맞는지, 이 children들의 소유자가 넘긴건지 체크.
+        // for문 돌릴 때 children의 nft 배열을 원소로 transfer 시켜야 함.
+        if let Some(nft_config) = &composable_config {
+            if nft_config.is_parent {
+                // 자식의 NFT "ATA"의 owner를 "mixture PDA"로 update한다.
+                // 외부에서 부모 NFT를 불러왔을 때, 부모 NFT 밑에 있는 "자식 NFT"의 정보를 불러올 수 있도록 코드짠다.
+                for nft in &nft_config.nfts {
+                    // 자식 NFT "Mint Account" Pubkey를 부모 NFT metadata pda에 저장한다.
+                    };
+                
+                // 반복하면서 N개의 children의 소유권 이전(spl_token_transfer을 사용해야 함.)
+                    // transfer and update authority
+                    // child nft에 대한 associate token account(mixture가 owner)를 만들어서, token을 보내고 원래 주인의 ata는 닫기
+            }
         }
 
         let metadata_infos = vec![
@@ -350,6 +356,35 @@ pub mod nft_breeding_machine_v2 {
             metadata_infos.as_slice(),
             &[&authority_seeds],
         )?;
+
+        let composable_data_info = vec![
+            // 자식 pub key들을 info에 추가(account info 형식)
+            children.is_parent ? ctx.accounts.children.to_account_infos()() : none
+        ]
+
+        // 조건에 따라 (is_parent일 때) 합성 NFT일 때만 인자를 알맞게 넣어야 함.
+        // program_id: &'a Pubkey,
+        // accounts: &'a [AccountInfo<'a>],
+        // data: DataV2,
+        // allow_direct_creator_writes: bool,
+        // is_mutable: bool,
+        
+        let metadata_composable_infos = vec![
+            ctx.accounts.metadata.to_account_info(),
+            ctx.accounts.mint.to_account_info(),
+            ctx.accounts.mint_authority.to_account_info(),
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.token_metadata_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+            ctx.accounts.rent.to_account_info(),
+            breeding_machine_creator.to_account_info(),
+            // 자식 pub key들을 info에 추가(account info 형식)
+            ctx.accounts.children.to_account_info()
+        ];
+        process_create_metadata_accounts_v2(
+
+        );
 
         msg!("Before master");
         sol_log_compute_units();
@@ -706,7 +741,7 @@ pub struct WithdrawFunds<'info> {
 
 /// Mint a new NFT pseudo-randomly from the config array.
 #[derive(Accounts)]
-#[instruction(creator_bump: u8, children_nfts:ChildrenNFTs)]
+#[instruction(creator_bump: u8)]
 pub struct MintNFT<'info> {
     #[account(
         mut,
@@ -740,21 +775,22 @@ pub struct MintNFT<'info> {
     recent_blockhashes: UncheckedAccount<'info>,
     #[account(address = sysvar::instructions::id())]
     instruction_sysvar_account: UncheckedAccount<'info>,
-    children: Account<'info, ChildrenNFTs>,
+    children: Account<'info, Composable>,
 }
 
 #[account]
 #[derive(Default)]
-pub struct ChildrenNFTs {
+pub struct Composable {
     pub authority: Pubkey, // 이 계정의 권한(mixtureProgram이어야 함.)
-    pub data: Option<ChildrenConfig>,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
-pub struct ChildrenConfig {
     pub is_parent: bool,
     pub nfts: Vec<Pubkey>,
 }
+
+// #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default)]
+// pub struct ComposableNFTConfig {
+//     pub is_parent: bool,
+//     pub nfts: Vec<Pubkey>,
+// }
 
 /// Update the breeding machine state.
 #[derive(Accounts)]
